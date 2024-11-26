@@ -1,0 +1,21 @@
+-- Drop existing policies if any
+drop policy if exists "Enable read access for authenticated users" on orders;
+drop policy if exists "Enable insert access for authenticated users" on orders;
+drop policy if exists "Enable update access for authenticated users" on orders;
+
+-- Create new policies that allow both authenticated and anonymous access
+create policy "Enable read access for all users" on orders
+    for select
+    to anon, authenticated
+    using (true);
+
+create policy "Enable insert access for all users" on orders
+    for insert
+    to anon, authenticated
+    with check (true);
+
+create policy "Enable update access for all users" on orders
+    for update
+    to anon, authenticated
+    using (true)
+    with check (true);
