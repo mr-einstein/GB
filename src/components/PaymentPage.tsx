@@ -8,9 +8,10 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
-import { updateOrderPayment } from '../utils/supabase';
 import { PayPalScriptProvider } from '@paypal/react-paypal-js';
+import { updateOrderPayment } from '../utils/supabase';
 import PayPalButton from './PayPalButton';
+import { API_ENDPOINTS, fetchApi } from '../utils/api';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
@@ -156,21 +157,13 @@ const PaymentPage: React.FC = () => {
 
   const initializePayment = async () => {
     try {
-      const response = await fetch('/.netlify/functions/create-payment', {
+      const data = await fetchApi(API_ENDPOINTS.createPaymentIntent, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           amount: state.totalAmount,
           orderId: state.orderId,
         }),
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create payment intent');
-      }
-      const data = await response.json();
       setClientSecret(data.clientSecret);
     } catch (err) {
       console.error('Error creating payment intent:', err);
