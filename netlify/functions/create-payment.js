@@ -1,7 +1,5 @@
-const Stripe = require('stripe');
-const fetch = require('node-fetch');
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const Stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const axios = require('axios');
 
 exports.handler = async (event) => {
   // Handle CORS preflight requests
@@ -44,7 +42,7 @@ exports.handler = async (event) => {
     }
 
     // Create Stripe Payment Intent
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await Stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: 'eur',
       metadata: { orderId },
