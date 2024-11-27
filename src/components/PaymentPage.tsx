@@ -8,10 +8,9 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
-import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 import { updateOrderPayment } from '../utils/supabase';
+import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 import PayPalButton from './PayPalButton';
-import { API_ENDPOINTS, fetchApi } from '../utils/api';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
@@ -155,27 +154,32 @@ const PaymentPage: React.FC = () => {
     }
   }, [location.state, navigate]);
 
-  const initializePayment = async () => {
-    try {
-      const data = await fetchApi(API_ENDPOINTS.createPaymentIntent, {
-        method: 'POST',
-        body: JSON.stringify({
-          amount: state.totalAmount,
-          orderId: state.orderId,
-        }),
-      });
-      setClientSecret(data.clientSecret);
-    } catch (err) {
-      console.error('Error creating payment intent:', err);
-      setError('Ein Fehler ist aufgetreten bei der Erstellung der Zahlung.');
-    }
-  };
-
+  // Create payment intent when component mounts
   useEffect(() => {
     if (!state?.orderId || !state?.totalAmount) {
       return;
     }
-    initializePayment();
+
+    fetch('http://localhost:3001/create-payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        amount: state.totalAmount,
+        orderId: state.orderId 
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to create payment intent');
+        }
+        return res.json();
+      })
+      .then((data) => setClientSecret(data.clientSecret))
+      .catch((err) => {
+        console.error('Error creating payment intent:', err);
+        setError('Ein Fehler ist aufgetreten bei der Erstellung der Zahlung.');
+      });
   }, [state?.orderId, state?.totalAmount]);
 
   if (!state) {
