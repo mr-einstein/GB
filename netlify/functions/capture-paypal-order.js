@@ -1,4 +1,11 @@
 const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -13,7 +20,8 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { orderId } = JSON.parse(event.body);
+    const { orderId, supabaseOrderId } = JSON.parse(event.body);
+    console.log('Capturing PayPal order:', orderId, 'for Supabase order:', supabaseOrderId);
 
     // Get PayPal access token
     const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64');
@@ -30,7 +38,7 @@ exports.handler = async (event) => {
 
     const accessToken = tokenResponse.data.access_token;
 
-    // Capture PayPal order
+    // Capture the PayPal order
     const captureResponse = await axios({
       method: 'post',
       url: `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`,
@@ -40,7 +48,23 @@ exports.handler = async (event) => {
       },
     });
 
-    const captureData = captureResponse.data;
+    if (captureResponse.data.status === 'COMPLETED') {
+      // Update order status in Supabase
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          payment_status: 'succeeded',
+          payment_provider: 'paypal',
+          paypal_order_id: orderId,
+          paypal_payer_id: captureResponse.data.payer.payer_id,
+        })
+        .eq('id', supabaseOrderId);
+
+      if (updateError) {
+        console.error('Error updating order in Supabase:', updateError);
+        throw updateError;
+      }
+    }
 
     return {
       statusCode: 200,
@@ -48,17 +72,40 @@ exports.handler = async (event) => {
         'Access-Control-Allow-Origin': 'https://testilicious.netlify.app',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(captureData),
+      body: JSON.stringify(captureResponse.data),
     };
+
   } catch (error) {
-    console.error('Error:', error);
+    console.error('PayPal capture error:', error.response?.data || error.message);
+    
+    // If there's a Supabase orderId, update the order status to failed
+    if (event.body) {
+      try {
+        const { supabaseOrderId } = JSON.parse(event.body);
+        if (supabaseOrderId) {
+          await supabase
+            .from('orders')
+            .update({
+              payment_status: 'failed',
+              payment_provider: 'paypal',
+            })
+            .eq('id', supabaseOrderId);
+        }
+      } catch (updateError) {
+        console.error('Error updating failed status:', updateError);
+      }
+    }
+
     return {
       statusCode: 500,
       headers: {
         'Access-Control-Allow-Origin': 'https://testilicious.netlify.app',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ error: 'Failed to capture PayPal order' }),
+      body: JSON.stringify({
+        error: 'Failed to capture PayPal payment',
+        details: error.response?.data || error.message,
+      }),
     };
   }
 };

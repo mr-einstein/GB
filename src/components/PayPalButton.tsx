@@ -51,12 +51,13 @@ const PayPalButton: React.FC<PayPalButtonProps> = ({
         method: 'POST',
         body: JSON.stringify({
           orderId: data.orderID,
+          supabaseOrderId: orderId,
         }),
       });
 
-      // Update order status
+      // Update order status to succeeded (not completed)
       await updateOrderPayment(orderId, {
-        payment_status: 'completed',
+        payment_status: 'succeeded',
         payment_provider: 'paypal',
         payment_intent_id: data.orderID,
       });
