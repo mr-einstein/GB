@@ -1,5 +1,7 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const fetch = (await import('node-fetch')).default;
+const Stripe = require('stripe');
+const fetch = require('node-fetch');
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 exports.handler = async (event) => {
   // Handle CORS preflight requests
