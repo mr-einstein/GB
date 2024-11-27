@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import { updateOrderPayment } from '../utils/supabase';
+import { API_ENDPOINTS, fetchApi } from '../utils/api';
 
 interface PayPalButtonProps {
   amount: number;
@@ -27,19 +28,15 @@ const PayPalButton: React.FC<PayPalButtonProps> = ({
       });
 
       // Create PayPal order
-      const response = await fetch('http://localhost:3001/create-paypal-order', {
+      const orderData = await fetchApi(API_ENDPOINTS.createPayPalOrder, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           amount,
           orderId,
         }),
       });
 
-      const order = await response.json();
-      return order.id;
+      return orderData.id;
     } catch (err) {
       console.error('Error creating PayPal order:', err);
       onError?.(err);
@@ -49,38 +46,31 @@ const PayPalButton: React.FC<PayPalButtonProps> = ({
 
   const onApprove = async (data: any) => {
     try {
-      // Capture the funds from the transaction
-      const response = await fetch(`http://localhost:3001/capture-paypal-order`, {
+      // Capture PayPal payment
+      const captureData = await fetchApi(API_ENDPOINTS.capturePayPalOrder, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           orderId: data.orderID,
-          supabaseOrderId: orderId,
         }),
       });
 
-      const details = await response.json();
-
-      // Update order with PayPal details
+      // Update order status
       await updateOrderPayment(orderId, {
-        payment_status: 'succeeded',
+        payment_status: 'completed',
         payment_provider: 'paypal',
-        paypal_order_id: data.orderID,
-        paypal_payer_id: details.payer_id,
+        payment_intent_id: data.orderID,
       });
 
       onSuccess?.();
     } catch (err) {
-      console.error('Error capturing PayPal order:', err);
+      console.error('Error capturing PayPal payment:', err);
       onError?.(err);
       
       // Update order status to failed
       await updateOrderPayment(orderId, {
         payment_status: 'failed',
         payment_provider: 'paypal',
-        paypal_order_id: data.orderID,
+        payment_intent_id: data.orderID,
       });
     }
   };
